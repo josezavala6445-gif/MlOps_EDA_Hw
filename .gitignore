@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.Python
+.venv/
+venv/
+.env
+.DS_Store
+.ipynb_checkpoints/
+*.egg-info/
+dist/
+build/
+
+# Modelos y salidas locales (se regeneran con entrenamiento.py)
+artifacts/*.joblib
+artifacts/eda/*.png
+artifacts/matriz_confusion_test.png
