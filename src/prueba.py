@@ -14,29 +14,10 @@ from pathlib import Path
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.metrics import (
-    accuracy_score,
-    classification_report,
-    confusion_matrix,
-    f1_score,
-    precision_score,
-    recall_score,
-)
-from sklearn.metrics import ConfusionMatrixDisplay
+from sklearn.metrics import ConfusionMatrixDisplay, classification_report, confusion_matrix
 
 from datos import raiz_proyecto
-
-
-def metricas_multiclase(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
-    """Mismas definiciones que en entrenamiento (weighted multiclase)."""
-    return {
-        "accuracy": float(accuracy_score(y_true, y_pred)),
-        "precision": float(
-            precision_score(y_true, y_pred, average="weighted", zero_division=0)
-        ),
-        "recall": float(recall_score(y_true, y_pred, average="weighted", zero_division=0)),
-        "f1": float(f1_score(y_true, y_pred, average="weighted", zero_division=0)),
-    }
+from metricas import metricas_multiclase
 
 
 def main() -> None:
@@ -55,6 +36,8 @@ def main() -> None:
     scores = metricas_multiclase(np.asarray(y_test), y_pred)
 
     print("Modelo cargado:", paquete.get("nombre_modelo", "(sin nombre)"))
+    if paquete.get("fuente_datos"):
+        print("Datos:", paquete["fuente_datos"])
     print("\n--- Métricas finales (conjunto de prueba) ---")
     for k, v in scores.items():
         print(f"  {k}: {v:.4f}")
@@ -71,7 +54,7 @@ def main() -> None:
     )
 
     cm = confusion_matrix(y_test, y_pred)
-    fig, ax = plt.subplots(figsize=(6, 5))
+    fig, ax = plt.subplots(figsize=(8, 6))
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=etiquetas)
     disp.plot(ax=ax, cmap="Blues", colorbar=False)
     ax.set_title("Matriz de confusión (test)")

@@ -1,9 +1,8 @@
 """
-Análisis exploratorio del dataset Wine (UCI) vía sklearn.
+Análisis exploratorio del dataset Wine Quality (Kaggle).
 
-El dataset tiene 178 muestras y 3 clases de vino; con tan pocas filas el EDA
-sirve sobre todo a entender escalas, correlaciones y si hay filas duplicadas
-o valores faltantes antes de modelar.
+Son ~1100 muestras con calidad en escala ordinal (varias clases, muchas en 5–6).
+El EDA sirve a ver desbalance, escalas distintas entre químicos y correlaciones.
 """
 
 from __future__ import annotations
@@ -20,46 +19,37 @@ from datos import cargar_vinos, raiz_proyecto
 
 
 def revisar_calidad(df: pd.DataFrame) -> None:
-    """
-    Revisa valores faltantes, duplicados y tipos. Wine suele venir limpio;
-    igual conviene demostrar el chequeo explícito.
-    """
+    """Reporta nulos; los duplicados ya se quitan al cargar en ``datos.cargar_vinos``."""
     print("\n--- Calidad de datos ---")
-    nulos = df.isna().sum().sum()
-    dups = df.duplicated().sum()
-    print(f"Total celdas NaN: {int(nulos)}")
-    print(f"Filas duplicadas (solo features): {int(dups)}")
-    if nulos == 0 and dups == 0:
-        print("No se aplicó limpieza adicional: no había nulos ni duplicados.")
+    nulos = int(df.isna().sum().sum())
+    print(f"Total celdas NaN en features: {nulos}")
+    if nulos > 0:
+        print("Atención: hay valores faltantes; conviene imputar antes de modelar.")
     else:
-        print("Atención: revisar filas problemáticas antes del modelado.")
+        print("Sin nulos. Duplicados eliminados en la carga (ver datos.py).")
 
 
 def estadisticas_descriptivas(df: pd.DataFrame, y: pd.Series) -> None:
     """Imprime resumen numérico y balance de clases."""
     print("\n--- Estadísticas descriptivas (features) ---")
     print(df.describe().round(3).to_string())
-    print("\n--- Conteo por clase ---")
+    print("\n--- Conteo por calidad (clase) ---")
     conteo = y.value_counts().sort_index()
-    for clase, n in conteo.items():
-        print(f"  clase {clase}: {int(n)} muestras")
+    for calidad, n in conteo.items():
+        print(f"  calidad {calidad}: {int(n)} muestras ({100 * n / len(y):.1f}%)")
 
 
-def graficar_distribuciones(df: pd.DataFrame, y: pd.Series, salida: Path) -> None:
-    """
-    Histogramas de un subconjunto de variables (escalas muy distintas:
-    ``proline`` llega a miles mientras ``non_flavanoid_phenols`` es pequeña).
-    """
+def graficar_distribuciones(df: pd.DataFrame, salida: Path) -> None:
+    """Histogramas de variables con escalas muy distintas (alcohol vs azúcar)."""
     salida.mkdir(parents=True, exist_ok=True)
-    cols = ["alcohol", "flavanoids", "color_intensity", "proline"]
+    cols = ["alcohol", "volatile acidity", "residual sugar", "density"]
     fig, axes = plt.subplots(2, 2, figsize=(9, 7))
-    axes = axes.ravel()
-    for ax, col in zip(axes, cols):
-        ax.hist(df[col], bins=18, color="#4c72b0", edgecolor="white")
+    for ax, col in zip(axes.ravel(), cols):
+        ax.hist(df[col], bins=25, color="#4c72b0", edgecolor="white")
         ax.set_title(col)
         ax.set_xlabel("valor")
         ax.set_ylabel("frecuencia")
-    fig.suptitle("Histogramas (variables en rangos distintos)")
+    fig.suptitle("Histogramas (Wine Quality — Kaggle)")
     fig.tight_layout()
     ruta = salida / "histogramas_clave.png"
     fig.savefig(ruta, dpi=120)
@@ -68,17 +58,16 @@ def graficar_distribuciones(df: pd.DataFrame, y: pd.Series, salida: Path) -> Non
 
 
 def graficar_boxplots_por_clase(df: pd.DataFrame, y: pd.Series, salida: Path) -> None:
-    """
-    Boxplots por clase: ayuda a ver si alguna variable separa bien los grupos.
-    """
+    """Boxplots por nivel de calidad: se ve solapamiento entre clases vecinas."""
     data = df.copy()
-    data["clase"] = y.values
-    features = ["alcohol", "od280/od315_of_diluted_wines", "flavanoids"]
-    fig, axes = plt.subplots(1, 3, figsize=(11, 4))
+    data["calidad"] = y.values
+    features = ["alcohol", "volatile acidity", "sulphates"]
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
     for ax, col in zip(axes, features):
-        sns.boxplot(data=data, x="clase", y=col, ax=ax)
+        sns.boxplot(data=data, x="calidad", y=col, ax=ax)
         ax.set_title(col)
-    fig.suptitle("Distribución por clase (0, 1, 2)")
+        ax.tick_params(axis="x", rotation=0)
+    fig.suptitle("Distribución por nivel de calidad")
     fig.tight_layout()
     ruta = salida / "boxplots_por_clase.png"
     fig.savefig(ruta, dpi=120)
@@ -87,7 +76,7 @@ def graficar_boxplots_por_clase(df: pd.DataFrame, y: pd.Series, salida: Path) ->
 
 
 def graficar_correlacion(df: pd.DataFrame, salida: Path) -> None:
-    """Matriz de correlación: detecta redundancia fuerte entre features."""
+    """Heatmap de correlación entre features químicas."""
     fig, ax = plt.subplots(figsize=(10, 8))
     corr = df.corr(numeric_only=True)
     sns.heatmap(corr, ax=ax, cmap="vlag", center=0, square=True)
@@ -100,40 +89,34 @@ def graficar_correlacion(df: pd.DataFrame, salida: Path) -> None:
 
 
 def main() -> None:
-    X, y, bunch = cargar_vinos()
+    X, y, meta = cargar_vinos()
 
-    print("Dataset Wine (sklearn)")
+    print("Dataset Wine Quality (Kaggle)")
+    print(f"Fuente: {meta.fuente}")
     print(f"Muestras: {len(X)}, features: {X.shape[1]}, clases: {y.nunique()}")
 
     revisar_calidad(X)
     estadisticas_descriptivas(X, y)
-    # Imprimir nombres de clase legibles
-    print("\n--- Nombres de clase (target) ---")
-    for i, nombre in enumerate(bunch.target_names):
-        print(f"  {i}: {nombre}")
+
+    print("\n--- Etiquetas de clase ---")
+    for nombre in meta.target_names:
+        print(f"  {nombre}")
 
     dir_fig = raiz_proyecto() / "artifacts" / "eda"
-    graficar_distribuciones(X, y, dir_fig)
+    graficar_distribuciones(X, dir_fig)
     graficar_boxplots_por_clase(X, y, dir_fig)
     graficar_correlacion(X, dir_fig)
 
-    # Correlaciones muy altas (ejemplo de insight)
     corr = X.corr(numeric_only=True)
     mask = np.triu(np.ones_like(corr, dtype=bool), k=1)
-    pares = (
-        corr.where(mask)
-        .stack()
-        .sort_values(ascending=False)
-        .head(3)
-    )
-    print("\n--- Pares con mayor correlación positiva (triángulo superior) ---")
+    pares = corr.where(mask).stack().sort_values(ascending=False).head(3)
+    print("\n--- Pares con mayor correlación positiva ---")
     for (a, b), val in pares.items():
         print(f"  {a} vs {b}: {val:.3f}")
 
-    print("\nEDA terminado. Revisa las figuras en:", dir_fig.resolve())
+    print("\nEDA terminado. Figuras en:", dir_fig.resolve())
 
 
 if __name__ == "__main__":
-    # Permite ejecutar como ``python src/eda.py`` añadiendo ``src`` al path
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     main()

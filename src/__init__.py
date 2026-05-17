@@ -1,1 +1,1 @@
-# Paquete src: EDA, entrenamiento y evaluación del dataset Wine.
+# Módulos: datos, eda, entrenamiento, prueba, metricas.
